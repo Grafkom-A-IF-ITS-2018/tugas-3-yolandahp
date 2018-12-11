@@ -1,0 +1,157 @@
+<html>
+    <head>
+        <title>
+            Tugas 3 Grafkom
+        </title>
+        <script type="text/javascript" src="gl-matrix-min.js"></script>
+        <script type="x-shader/x-fragment" id="shader-fs">
+            precision mediump float;
+            
+            varying vec2 vTextureCoord;
+            varying vec4 vColor;
+            varying vec3 vLight;
+
+            uniform sampler2D uSampler;
+            uniform float uAlpha;
+
+            void main(void){
+                vec4 textureColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));
+                glFragColor = vColor + vec4(textureColor.rgb * vLight, textureColor.a * uAlpha)
+            }
+        </script>
+        <script type="x-shader/x-vertex" id="shader-vs">
+            attribute vec3 aVertexPosition;
+            attribute vec4 aVertexColor;
+            attribute vec3 aVertexNormal;
+            attribute vec2 aVertexTexCoord;
+
+            uniform mat3 uNormalMatrix;
+            uniform mat4 uMVMatrix;
+            uniform mat4 uPMatrix;
+
+            uniform vec3 uAmbientColor;
+            uniform vec3 uPointLightingLoc;
+            uniform vec3 uPointLightingColor;
+
+            uniform bool uUseLighting;
+            uniform float uShine;
+
+            varying vec4 vColor;
+            varying vec3 vLight;
+            varying vec4 vColor;
+            
+            void main(void){
+                gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+                vTextureCoord = aVertexTexCoord;
+                vColor = aVertexColor;
+
+                if(!uUseLighting){
+                    vLight = vec3(1.0, 1.0, 1.0);
+                } else{
+                    vec3 lightDirection = normalize(vec3(uPointLightingLoc.xyz - aVertexPosition.xyz));
+                    vec3 transformedNormal = uNormalMatrix * aVertexNormal;
+
+                    float res = dot(transformedNormal, lightDirection);
+                    if(res < 0.0) res*=(-1)
+                    float directionalLight = max(pow(res, uShine), 0.0);
+                    vLight = uAmbientColor + uPointLightingColor * directionalLight;
+                }
+            }
+        </script>
+        <!-- <script src = "main.js"></script> -->
+        <script type = "text/javascript">
+            var gl;
+            function initGL(canvas){
+                try{
+                    gl = canvas.getContext('webgl');
+                    gl.viewportWidth = canvas.width; 
+                    gl.viewportHeight = canvas.height; 
+                } catch(error){
+                    if(!gl){
+                        alert('Tidak bisa menginisiasi WebGL');
+                    }
+                }
+            }
+
+            function getShader(gl, id){
+                var shaderScript = document.getElementById(id);
+                if(!shaderScript){
+                    return null;
+                }
+                
+                var str = '';
+                var k = shaderScript.firstChild;
+                while(k){
+                    if(k.nodeType == 3){
+                        str += k.textContent;
+                    }
+                    k = k.nextSibling;
+                }
+
+                var shader;
+                if (shaderScript.type == 'x-shader/x-fragment'){
+                    shader = gl.createShader(gl.FRAGMENT_SHADER);
+                } else if (shaderScript.type == 'x-shader/x-vertex' ){
+                    shader = gl.createShader(gl.VERTEX_SHADER);                   
+                } else{
+                    return null;
+                }
+                
+                gl.shaderSource(shader, str);
+                gl.compileShader(shader);
+                
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+                    alert(gl.getShaderInfoLog(shader));
+                    return null;
+                }
+                return shader;
+            }
+
+            var shaderProgram;
+            function initShaders(){
+                var vertexShader = getShader(gl, 'shader-vs');
+                var fragmentShader = getShader(gl, 'shader-fs');
+
+                shaderProgram = gl.createProgram();
+                gl.attachShader(shaderProgram, fragmentShader);
+                gl.attachShader(shaderProgram, vertexShader);
+                gl.linkProgram(shaderProgram);
+
+                if(!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)){
+                    alert('Tidak bisa menghubungkan shader-shader');
+                }
+
+                gl.useProgram(shaderProgram);
+
+                shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, 'aVertexPosition');
+                gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+                
+                shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, 'aVertexColor');
+                gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute);
+
+                shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, 'aVertexNormal');
+                gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+                
+                shaderProgram.vertexTexCoordAttribute = gl.getAttribLocation(shaderProgram, 'aVertexTexCoord');
+                gl.enableVertexAttribArray(shaderProgram.vertexTexCoordAttribute);
+                
+                shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, 'uPMatrix')
+                shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, 'uMVMatrix')
+                shaderProgram.normalMatrixUniform = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
+                shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+                shaderProgram.useLightingUniform = gl.getUniformLocation(shaderProgram, "uUseLighting");
+                shaderProgram.ambientColorUniform = gl.getUniformLocation(shaderProgram, "uAmbientColor");
+                shaderProgram.pointLightingLocUniform = gl.getUniformLocation(shaderProgram, "uPointLightingLoc");
+                shaderProgram.pointLightingColorUniform = gl.getUniformLocation(shaderProgram, "uPointLightingColor");
+                shaderProgram.alphaUniform = gl.getUniformLocation(shaderProgram, "uAlpha");
+                shaderProgram.shineUniform = gl.getUniformLocation(shaderProgram, "uShine");
+            }
+
+
+        </script>
+        
+    </head>
+    <body>
+        <canvas id="mycanvas" style="border:none" width="1600" height="800" align="center"></canvas>
+    </body>
+</html>

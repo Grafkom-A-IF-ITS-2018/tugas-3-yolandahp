@@ -1,0 +1,676 @@
+<html>
+    <head>
+        <title>
+            Tugas 3 Grafkom
+        </title>
+        <script type="text/javascript" src="gl-matrix-min.js"></script>
+        <script type="x-shader/x-fragment" id="shader-fs">
+            precision mediump float;
+            varying vec4 vColor;
+            void main(void){
+                gl_FragColor = vColor;
+            }
+        </script>
+        <script type="x-shader/x-vertex" id="shader-vs">
+            attribute vec3 aVertexPosition;
+            attribute vec4 aVertexColor;
+            uniform mat4 uMVMatrix;
+            uniform mat4 uPMatrix;
+            varying vec4 vColor;
+            void main(void){
+                gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+                vColor = aVertexColor;
+            }
+        </script>
+        <script type="text/javascript">
+            /** @type {WebGLRenderingContext} */
+            var gl
+            function initGL(canvas){
+                try{
+                    gl = canvas.getContext('webgl')
+                    gl.viewportWidth = canvas.width 
+                    gl.viewportHeight = canvas.height 
+                } catch(error){
+                    if(!gl){
+                        alert('Tidak bisa menginisiasi WebGL')
+                    }
+                }
+            }
+            function getShader(gl, id){
+                var shaderScript = document.getElementById(id)
+                if(!shaderScript){
+                    return null
+                }
+                var str = ''
+                var k = shaderScript.firstChild
+                while(k){
+                    if(k.nodeType == 3){
+                        str += k.textContent
+                    }
+                    k = k.nextSibling
+                }
+                var shader
+                if (shaderScript.type == 'x-shader/x-fragment'){
+                    shader = gl.createShader(gl.FRAGMENT_SHADER)
+                } else if (shaderScript.type == 'x-shader/x-vertex' ){
+                    shader = gl.createShader(gl.VERTEX_SHADER)                   
+                } else{
+                    return null
+                }
+                gl.shaderSource(shader, str)
+                gl.compileShader(shader)
+                if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+                    alert(gl.getShaderInfoLog(shader))
+                    return null
+                }
+                return shader
+            }
+            var shaderProgram
+            function initShaders() {
+                var vertexShader = getShader(gl, 'shader-vs')
+                var fragmentShader = getShader(gl, 'shader-fs')
+                shaderProgram = gl.createProgram()
+                gl.attachShader(shaderProgram, fragmentShader)
+                gl.attachShader(shaderProgram, vertexShader)
+                gl.linkProgram(shaderProgram)
+                if(!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)){
+                    alert('Tidak bisa menghubungkan shader-shader')
+                }
+                gl.useProgram(shaderProgram)
+                shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, 'aVertexPosition')
+                gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute)
+                shaderProgram.vertexColorAttribute = gl.getAttribLocation(shaderProgram, 'aVertexColor')
+                gl.enableVertexAttribArray(shaderProgram.vertexColorAttribute)
+                shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, 'uPMatrix')
+                shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, 'uMVMatrix')
+            }
+            var mvMatrix = mat4.create()
+            var mvMatrixStack = []
+            var pMatrix = mat4.create()
+            function mvPushMatrix(){
+                var duplicate = mat4.create()
+                mat4.copy(duplicate, mvMatrix)
+                mvMatrixStack.push(duplicate)
+            }
+            function mvPopMatrix(){
+                if (mvMatrixStack.length == 0){
+                    throw 'Tumpukan matrix kosong'
+                }
+                mvMatrix = mvMatrixStack.pop()
+            }
+            function setMatrixUniform(){
+                gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix)
+                gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix)
+            }
+
+            var lVertexPositionBuffer
+            var lVertexColorBuffer
+
+            var cubeVertexPositionBuffer
+            var cubeVertexIndexBuffer
+            var cubeVertexColorBuffer
+
+            var lvertices = []
+            var cubevertices = []
+
+            var cubefaceVertexPositionBuffer = new Array(6)
+            var cubefaceVertexColorBuffer = new Array(6)
+
+            function initBuffers(){
+                //colors
+                var c1 = [1.0, 0.702, 0.8, 1.0,]
+                var c2 = [1.0, 1.0, 0.8, 1.0,]
+                var c3 = [0.949, 1.0, 0.212, 1.0,]
+                var c4 = [0.8, 0.831, 1.0, 1.0,]
+                var c5 = [1.0, 0.8, 0.8, 1.0,]
+                var c6 = [0.902, 0.8, 1.0, 1.0,]
+
+                var c = [c1, c2, c3, c4, c5, c6]
+                
+                //letter L position
+                lVertexPositionBuffer = gl.createBuffer()
+                gl.bindBuffer(gl.ARRAY_BUFFER, lVertexPositionBuffer)
+
+                var vertices = []
+                
+                for (var i = 0; i < 6; i++){
+                    vertices = vertices.concat([
+                        -0.4, 0.6 - i*0.2, 0.0,
+                        -0.2, 0.6 - i*0.2, 0.0,
+                        -0.4, 0.4 - i*0.2, 0.0,
+                        -0.2, 0.6 - i*0.2, 0.0,
+                        -0.4, 0.4 - i*0.2, 0.0,
+                        -0.2, 0.4 - i*0.2, 0.0,
+                    ])
+                }
+
+                for (var i = 0; i < 3; i++){
+                    vertices = vertices.concat([
+                        -0.2 + i*0.2, -0.4, 0.0,
+                        -0.2 + i*0.2, -0.6, 0.0,
+                        0.0 + i*0.2, -0.4, 0.0,
+                        -0.2 + i*0.2, -0.6, 0.0,
+                        0.0 + i*0.2, -0.4, 0.0,
+                        0.0 + i*0.2, -0.6, 0.0,  
+                    ])
+                }
+
+                for (var i = 0; i < 6; i++){
+                    vertices = vertices.concat([
+                        -0.4, 0.6 - i*0.2, -0.2,
+                        -0.2, 0.6 - i*0.2, -0.2,
+                        -0.4, 0.4 - i*0.2, -0.2,
+                        -0.2, 0.6 - i*0.2, -0.2,
+                        -0.4, 0.4 - i*0.2, -0.2,
+                        -0.2, 0.4 - i*0.2, -0.2,
+                    ])
+                }
+
+                for (var i = 0; i < 3; i++){
+                    vertices = vertices.concat([
+                        -0.2 + i*0.2, -0.4, -0.2,
+                        -0.2 + i*0.2, -0.6, -0.2,
+                        0.0 + i*0.2, -0.4, -0.2,
+                        -0.2 + i*0.2, -0.6, -0.2,
+                        0.0 + i*0.2, -0.4, -0.2,
+                        0.0 + i*0.2, -0.6, -0.2,  
+                    ])
+                }
+                
+                vertices = vertices.concat([
+                    //atas
+                    -0.4, 0.6, 0.0,
+                    -0.4, 0.6, -0.2,
+                    -0.2, 0.6, 0.0,
+                    -0.4, 0.6, -0.2,
+                    -0.2, 0.6, 0.0,
+                    -0.2, 0.6, -0.2,
+
+                    //tengah
+                    -0.2, -0.4, 0.0,
+                    -0.2, -0.4, -0.2,
+                    0.4, -0.4, 0.0,
+                    -0.2, -0.4, -0.2,
+                    0.4, -0.4, 0.0,
+                    0.4, -0.4, -0.2,
+
+                    //bawah
+                    -0.4, -0.6, 0.0,
+                    -0.4, -0.6, -0.2,
+                    0.4, -0.6, 0.0,
+                    -0.4, -0.6, -0.2,
+                    0.4, -0.6, 0.0,
+                    0.4, -0.6, -0.2,
+
+                    //tegak
+                    -0.4, 0.6, 0.0,
+                    -0.4, 0.6, -0.2,
+                    -0.4, -0.6, 0.0,
+                    -0.4, 0.6, -0.2,
+                    -0.4, -0.6, 0.0,
+                    -0.4, -0.6, -0.2,
+                    
+                    -0.2, 0.6, 0.0,
+                    -0.2, 0.6, -0.2,
+                    -0.2, -0.4, 0.0,
+                    -0.2, 0.6, -0.2,
+                    -0.2, -0.4, 0.0,
+                    -0.2, -0.4, -0.2,
+
+                    0.4, -0.4, 0.0,
+                    0.4, -0.4, -0.2,
+                    0.4, -0.6, 0.0,
+                    0.4, -0.4, -0.2,
+                    0.4, -0.6, 0.0,
+                    0.4, -0.6, -0.2,                    
+                ])
+
+                for (var i = 0; i < vertices.length/3; i++){
+                    lvertices.push([vertices[i*3], vertices[i*3 +1], vertices[i*3 +2], 1.0])
+                }
+
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW)
+                lVertexPositionBuffer.itemSize = 3
+                lVertexPositionBuffer.numItems = vertices.length/3
+
+                //letter L color
+                lVertexColorBuffer = gl.createBuffer()
+                gl.bindBuffer(gl.ARRAY_BUFFER, lVertexColorBuffer)
+                
+                var colors = []
+                for (var i = 0; i < 108; i++){
+                    colors = colors.concat(c[Math.floor((Math.random() * 10)) %6])
+                }
+
+                for (var i = 0; i < 36; i++){
+                    colors = colors.concat(c[0])
+                }
+
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW)
+                lVertexColorBuffer.itemSize = 4
+                lVertexColorBuffer.numItems = colors.length/4
+
+
+                //Cube position
+                cubeVertexPositionBuffer = gl.createBuffer()
+                gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer)
+
+                vertices = [
+                    -2.0, 2.0, 2.0,
+                    2.0, 2.0, 2.0,
+                    2.0, -2.0, 2.0,
+                    -2.0, -2.0, 2.0,
+
+                    -2.0, 2.0, -2.0,
+                    2.0, 2.0, -2.0,
+                    2.0, -2.0, -2.0,
+                    -2.0, -2.0, -2.0,
+                ]
+
+                cubevertices.push([-2.0, 2.0, 2.0, 1.0]) //kiri atas depan
+
+                cubevertices.push([2.0, -2.0, -2.0, 1.0]) //kanan bawah belakang
+                
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW)
+                cubeVertexPositionBuffer.itemSize = 3
+                cubeVertexPositionBuffer.numItems = vertices.length/3
+                
+                //cube vertices
+                cubeVertexIndexBuffer = gl.createBuffer();
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer);
+
+                var indices = [
+                    0, 1, 1, 2, 2, 3, 3, 0,
+                    4, 5, 5, 6, 6, 7, 7, 4,
+                    0, 4, 1, 5, 2, 6, 3, 7, 
+                ]
+
+                gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+                cubeVertexIndexBuffer.itemSize = 1;
+                cubeVertexIndexBuffer.numItems = indices.length;
+                
+                //cube color
+                cubeVertexColorBuffer = gl.createBuffer()
+                gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexColorBuffer)
+
+                var cubecolors = []
+                for (var i = 0; i < 16; i++){
+                    cubecolors = cubecolors.concat(c5)
+                }
+
+                gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cubecolors), gl.STATIC_DRAW)
+                cubeVertexColorBuffer.itemSize = 4
+                cubeVertexColorBuffer.numItems = cubecolors.length/4
+                
+                //cube face
+                cubefacevertices = []
+                cubefacevertices.push([ //top
+                    -2.0, 2.0, -2.0,
+                    2.0, 2.0, -2.0,
+                    -2.0, 2.0, 2.0,
+                    2.0, 2.0, -2.0,
+                    -2.0, 2.0, 2.0,
+                    2.0, 2.0, 2.0,
+                ])
+                cubefacevertices.push([ //bottom
+                    -2.0, -2.0, -2.0,
+                    2.0, -2.0, -2.0,
+                    -2.0, -2.0, 2.0,
+                    2.0, -2.0, -2.0,
+                    -2.0, -2.0, 2.0,
+                    2.0, -2.0, 2.0,
+                ])
+                cubefacevertices.push([ //right
+                    2.0, 2.0, 2.0,
+                    2.0, 2.0, -2.0,
+                    2.0, -2.0, 2.0,
+                    2.0, 2.0, -2.0,
+                    2.0, -2.0, 2.0,
+                    2.0, -2.0, -2.0,
+                ])
+                cubefacevertices.push([ //left
+                    -2.0, 2.0, 2.0,
+                    -2.0, 2.0, -2.0,
+                    -2.0, -2.0, 2.0,
+                    -2.0, 2.0, -2.0,
+                    -2.0, -2.0, 2.0,
+                    -2.0, -2.0, -2.0,
+                ])
+                cubefacevertices.push([ //front
+                    -2.0, 2.0, 2.0,
+                    2.0, 2.0, 2.0,
+                    -2.0, -2.0, 2.0,
+                    2.0, 2.0, 2.0,
+                    -2.0, -2.0, 2.0,
+                    2.0, -2.0, 2.0,
+                ])
+                cubefacevertices.push([ //back
+                    -2.0, 2.0, -2.0,
+                    2.0, 2.0, -2.0,
+                    -2.0, -2.0, -2.0,
+                    2.0, 2.0, -2.0,
+                    -2.0, -2.0, -2.0,
+                    2.0, -2.0, -2.0,
+                ])
+
+                async function cubefaceBuffer(i) {
+                    await delay()
+                    cubefaceVertexPositionBuffer[i] = gl.createBuffer()
+                    gl.bindBuffer(gl.ARRAY_BUFFER, cubefaceVertexPositionBuffer[i])
+
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(cubefacevertices[i]), gl.STATIC_DRAW)
+                    cubefaceVertexPositionBuffer[i].itemSize = 3
+                    cubefaceVertexPositionBuffer[i].numItems = 6
+
+                    cubefaceVertexColorBuffer[i] = gl.createBuffer()
+                    gl.bindBuffer(gl.ARRAY_BUFFER, cubefaceVertexColorBuffer[i])
+
+                    var colors = []
+                    for (var j = 0; j < 6; j++){
+                        colors = colors.concat(c5)
+                    }
+
+                    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colors), gl.STATIC_DRAW)
+                    cubefaceVertexColorBuffer[i].itemSize = 4
+                    cubefaceVertexColorBuffer[i].numItems = colors.length/4
+                }
+
+                async function processcubefacearray(array) {
+                    array.forEach(async (item) => {
+                        await cubefaceBuffer(item)
+                    })
+                }
+
+                processcubefacearray([0, 1, 2, 3, 4, 5])
+            }
+
+            var rl = 0
+            
+            var xtrans = 0
+            var ytrans = 0
+            var ztrans = 0
+
+            var cubefaceflag = -1
+
+            var xrot = 0.0
+            var yrot = 0.0
+            var xspeed = 0.0
+            var yspeed = 0.0
+
+            var currentPressedKeys = {}
+
+            function handleKeyDown(event) {
+                currentPressedKeys[event.keyCode] = true
+            }
+
+            function handleKeyUp(event) {
+                currentPressedKeys[event.keyCode] = false
+                xspeed = 0.0
+                yspeed = 0.0
+            }
+
+            function handleKeys() {
+                if (currentPressedKeys[37]) { //tombol kiri
+                    yspeed -= 1.0
+                }
+                if (currentPressedKeys[39]) { //tombol kanan
+                    yspeed += 1.0
+                }
+                if(currentPressedKeys[38]) { //tombol atas
+                    xspeed -= 1
+                }
+                if(currentPressedKeys[40]) { //tombol bawah
+                    xspeed += 1
+                }
+            }
+
+            function drawScene(){
+                
+                gl.viewport(0, 0, gl.viewportWidth, gl.viewportWidth)
+                gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+                mat4.perspective(pMatrix, glMatrix.toRadian(45), gl.viewportWidth/gl.viewportHeight, 0.1, 100.0)
+                mat4.identity(mvMatrix)
+                
+                mat4.translate(mvMatrix, mvMatrix, [0.0, 0.0, -7.5])
+
+                mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(xrot), [1, 0, 0])
+                mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(yrot), [0, 1, 0])
+                    
+                //console.log(mvMatrix)
+                mvPushMatrix()
+                mat4.translate(mvMatrix, mvMatrix, [xtrans, ytrans, ztrans])
+                mat4.rotate(mvMatrix, mvMatrix, glMatrix.toRadian(rl), [0.0, 1.0, 0.0])
+                gl.bindBuffer(gl.ARRAY_BUFFER, lVertexPositionBuffer)
+                gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, lVertexPositionBuffer.itemSize,
+                gl.FLOAT, false, 0, 0)
+                gl.bindBuffer(gl.ARRAY_BUFFER, lVertexColorBuffer)
+                gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, lVertexColorBuffer.itemSize,
+                gl.FLOAT, false, 0, 0)
+
+                
+                var mltemp = mat4.create()
+                mat4.identity(mltemp)
+                
+                mat4.rotate(mltemp, mvMatrix, glMatrix.toRadian(-xrot), [1, 0, 0])
+                mat4.rotate(mltemp, mvMatrix, glMatrix.toRadian(-yrot), [0, 1, 0])
+
+                var currentpos_l = []
+                for (var i = 0; i < lvertices.length; i++) {
+                    var cur = matrixmul(mltemp, lvertices[i])
+                    currentpos_l.push(cur)
+                }
+
+                setMatrixUniform()
+                gl.drawArrays(gl.TRIANGLES, 0, lVertexPositionBuffer.numItems)
+
+                mvPopMatrix()
+                
+                mvPushMatrix()
+                gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexPositionBuffer)
+                gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubeVertexPositionBuffer.itemSize,
+                gl.FLOAT, false, 0, 0)
+                gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cubeVertexIndexBuffer)
+                gl.bindBuffer(gl.ARRAY_BUFFER, cubeVertexColorBuffer)
+                gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, cubeVertexColorBuffer.itemSize,
+                gl.FLOAT, false, 0, 0)
+
+                var mcubetemp = mat4.create()
+                mat4.identity(mcubetemp)
+                
+                mat4.rotate(mcubetemp, mvMatrix, glMatrix.toRadian(-xrot), [1, 0, 0])
+                mat4.rotate(mcubetemp, mvMatrix, glMatrix.toRadian(-yrot), [0, 1, 0])
+               
+                var currentpos_cube = []
+                for (var i = 0; i < cubevertices.length; i++) {
+                    var cur = matrixmul(mcubetemp, cubevertices[i])
+                    currentpos_cube.push(cur)
+                }
+                
+                checkcollision(currentpos_l, currentpos_cube)
+                
+                setMatrixUniform()
+                gl.drawElements(gl.LINES, cubeVertexIndexBuffer.numItems, gl.UNSIGNED_SHORT, 0)
+                mvPopMatrix()
+
+                if(cubefaceflag > -1){
+                    mvPushMatrix()
+                    mat4.translate(mvMatrix, mvMatrix, [0.0, 0.0, 0.0])
+                    
+                    gl.bindBuffer(gl.ARRAY_BUFFER, cubefaceVertexPositionBuffer[cubefaceflag])
+                    gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, cubefaceVertexPositionBuffer[cubefaceflag].itemSize,
+                    gl.FLOAT, false, 0, 0)
+                    gl.bindBuffer(gl.ARRAY_BUFFER, cubefaceVertexColorBuffer[cubefaceflag])
+                    gl.vertexAttribPointer(shaderProgram.vertexColorAttribute, cubefaceVertexColorBuffer[cubefaceflag].itemSize,
+                    gl.FLOAT, false, 0, 0)
+                    
+                    setMatrixUniform()
+                    gl.drawArrays(gl.TRIANGLES, 0, cubefaceVertexPositionBuffer[cubefaceflag].numItems)
+                    
+                    mvPopMatrix()
+                }
+            }
+
+            var lastTime = 0
+            function animate() {
+                var timeNow = new Date().getTime()
+                if (lastTime != 0) {
+                    var elapsed = timeNow - lastTime
+                    xrot += (xspeed * elapsed) / 1000.0
+                    yrot += (yspeed * elapsed) / 1000.0
+
+                    rl += (90 * rot * elapsed) / 1000.0
+                    lmove()
+                }
+                lastTime = timeNow
+            }
+
+            function matrixmul(mv, l) {
+                var x = mv[0]*l[0] + mv[4]*l[1] + mv[8]*l[2] + mv[12]*l[3]
+                var y = mv[1]*l[0] + mv[5]*l[1] + mv[9]*l[2] + mv[13]*l[3]
+                var z = mv[2]*l[0] + mv[6]*l[1] + mv[10]*l[2] + mv[14]*l[3]
+                var i = mv[3]*l[0] + mv[7]*l[1] + mv[11]*l[2] + mv[15]*l[3]
+                
+                //console.log(x, y, z, i)
+                return [x, y, z, i]
+            }
+
+            var colx = 1.0, coly = 1.0, colz = -1.0, rot = 1.0
+
+            function checkcollision(l, cube) {
+                //kanan
+                for (var i = 0; i < l.length; i++) {
+                    if (l[i][0] >= cube[1][0]) {
+                        if (colx > 0) {
+                            colx = colx*(-1.0)
+                            rot = rot*(-1.0)
+                            cubefaceflag = 2
+                            setTimeout(() => {
+                                cubefaceflag = -1
+                            }, 150)
+                        }
+                        return
+                    } 
+                }
+                
+                //kiri
+                for (var i = 0; i < l.length; i++) {
+                    if (l[i][0] <= cube[0][0]) {
+                        if (colx < 0) {
+                            colx = colx*(-1.0)
+                            rot = rot*(-1.0)
+                            cubefaceflag = 3
+                            setTimeout(() => {
+                                cubefaceflag = -1
+                            }, 150)
+                        }
+                        return
+                    } 
+                }
+                
+                //atas
+                for (var i = 0; i < l.length; i++) {
+                    if (l[i][1] >= cube[0][1]) {
+                        if (coly > 0) {
+                            coly = coly*(-1.0)
+                            rot = rot*(-1.0)
+                            cubefaceflag = 0
+                            setTimeout(() => {
+                                cubefaceflag = -1
+                            }, 150)
+                        }
+                        return
+                    }
+                }
+                
+                //bawah
+                for (var i = 0; i < l.length; i++) {
+                    if (l[i][1] <= cube[1][1]) {
+                        if (coly < 0) {
+                            coly = coly*(-1.0)
+                            rot = rot*(-1.0)
+                            cubefaceflag = 1
+                            setTimeout(() => {
+                                cubefaceflag = -1
+                            }, 150)
+                        }
+                        return
+                    }
+                }
+
+                //console.log(cube[0][2], cube[4][2])
+                //depan
+                for (var i = 0; i < l.length; i++) {
+                    if (l[i][2] >= cube[0][2]) {
+                        if (colz > 0) {
+                            colz = colz*(-1.0)
+                            rot = rot*(-1.0)
+                            cubefaceflag = 4
+                            setTimeout(() => {
+                                cubefaceflag = -1
+                            }, 150)
+                        }
+                        return
+                    }
+                }
+                
+                //belakang
+                for (var i = 0; i < l.length; i++) {
+                    if (l[i][2] <= cube[1][2]) {
+                        if (colz < 0) {
+                            colz = colz*(-1.0)
+                            rot = rot*(-1.0)
+                            cubefaceflag = 5
+                            setTimeout(() => {
+                                cubefaceflag = -1
+                            }, 150)
+                        }
+                        return
+                    }
+                }
+            }
+
+            function lmove() {
+                xtrans += 0.008*colx
+                ytrans += 0.008*coly
+                ztrans += 0.008*colz
+            }
+
+            function tick() {
+                requestAnimationFrame(tick)
+                handleKeys()
+                drawScene()
+                animate()
+            }
+
+            function delay() {
+                return new Promise(resolve => setTimeout(resolve, 300))
+            }
+
+            function webGLStart() {
+                var canvas = document.getElementById('mycanvas')
+                initGL(canvas)
+                initShaders()
+                initBuffers()
+                gl.clearColor(0.0, 0.0, 0.0, 1.0)
+                gl.enable(gl.DEPTH_TEST)
+                
+                document.onkeydown = handleKeyDown
+                document.onkeyup = handleKeyUp
+
+                tick()
+            }
+        </script>
+    </head>
+    <body onload="webGLStart()">
+        <div style="margin: 0 auto; width: 550px;">
+            <div>
+            <canvas id="mycanvas" style="border:none" width="550" height="550" align="center"></canvas>
+            </div>
+            <div>
+                Tekan tombol:<br/>
+                - Up dan Down Arrow untuk membuat kubus berotasi terhadap sumbu X<br/>
+                - Left dan Right Arrow untuk membuat kubus berotasi terhadap sumbu Y<br/>     
+            </div>
+        </div>
+    </body>
+</html>
