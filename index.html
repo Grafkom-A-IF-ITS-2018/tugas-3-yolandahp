@@ -41,6 +41,7 @@
                 if(!shaderScript){
                     return null
                 }
+                
                 var str = ''
                 var k = shaderScript.firstChild
                 while(k){
@@ -49,6 +50,7 @@
                     }
                     k = k.nextSibling
                 }
+
                 var shader
                 if (shaderScript.type == 'x-shader/x-fragment'){
                     shader = gl.createShader(gl.FRAGMENT_SHADER)
@@ -57,8 +59,10 @@
                 } else{
                     return null
                 }
+                
                 gl.shaderSource(shader, str)
                 gl.compileShader(shader)
+                
                 if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
                     alert(gl.getShaderInfoLog(shader))
                     return null
