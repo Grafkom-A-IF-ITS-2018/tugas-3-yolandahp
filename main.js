@@ -2,13 +2,16 @@ var gl;
 
 function WebGL(id){
     var canvas = document.getElementById(id)
+    //console.log(canvas);
     gl = canvas.getContext('webgl');
     gl.viewportWidth = canvas.width; 
     gl.viewportHeight = canvas.height; 
 
     function initShaders(){
-        var vertexShader = getShader(gl, 'shader-vs');
-        var fragmentShader = getShader(gl, 'shader-fs');
+        var vertexShader = getShader('shader-vs');
+        var fragmentShader = getShader('shader-fs');
+
+        console.log(gl);
 
         this.shaderProgram = gl.createProgram();
         gl.attachShader(this.shaderProgram, fragmentShader);
@@ -45,6 +48,44 @@ function WebGL(id){
         this.shaderProgram.shineUniform = gl.getUniformLocation(this.shaderProgram, "uShine");
     }
 
+    function getShader(id){
+        var shaderScript = document.getElementById(id);
+
+        //console.log(shaderScript);
+        if(!shaderScript){
+            return null;
+        }
+        
+        var str = '';
+        var k = shaderScript.firstChild;
+        while(k){
+            if(k.nodeType == 3){
+                str += k.textContent;
+            }
+            k = k.nextSibling;
+        }
+    
+        var shader;
+
+        if (shaderScript.type == 'x-shader/x-fragment'){
+            shader = gl.createShader(gl.FRAGMENT_SHADER)
+            console.log(shader);
+        } else if (shaderScript.type == 'x-shader/x-vertex' ){
+            shader = gl.createShader(gl.VERTEX_SHADER);                   
+        } else{
+            return null;
+        }
+        
+        gl.shaderSource(shader, str);
+        gl.compileShader(shader);
+        
+        if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+            alert(gl.getShaderInfoLog(shader));
+            return null;
+        }
+        return shader;
+    }
+
     initShaders = initShaders.bind(this);
     initShaders();
 
@@ -69,52 +110,20 @@ function WebGL(id){
         '4' : mat4.create()
     }
 
-    this.objectBuffer [];
+    this.objectBuffer = [];
 
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
     gl.enable(gl.DEPTH_TEST);
 }
 
-function getShader(gl, id){
-    var shaderScript = document.getElementById(id);
-    if(!shaderScript){
-        return null;
-    }
-    
-    var str = '';
-    var k = shaderScript.firstChild;
-    while(k){
-        if(k.nodeType == 3){
-            str += k.textContent;
-        }
-        k = k.nextSibling;
-    }
 
-    var shader;
-    if (shaderScript.type == 'x-shader/x-fragment'){
-        shader = gl.createShader(gl.FRAGMENT_SHADER);
-    } else if (shaderScript.type == 'x-shader/x-vertex' ){
-        shader = gl.createShader(gl.VERTEX_SHADER);                   
-    } else{
-        return null;
-    }
-    
-    gl.shaderSource(shader, str);
-    gl.compileShader(shader);
-    
-    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
-        alert(gl.getShaderInfoLog(shader));
-        return null;
-    }
-    return shader;
-}
 
 function handleLoadedTexture(texture){
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, texture.image);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.nearest);
-    gl.texParameteri(GL.TEXTURE_2D, GL.TEXTURE_MIN_FILTER, gl.nearest);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.nearest);
 
     gl.bindTexture(gl.TEXTURE_2D, null);
 
@@ -131,26 +140,23 @@ WebGL.prototype.mvPushMatrix = function(i){
 }
 
 WebGL.prototype.mvPopMatrix = function(i){
-    if(mvMatrixStack[i].length == 0){
-        throw 'Tumpukan matrix kosong';
-    }
     this.mvMatrix[i] = this.mvMatrixStack[i].pop();
 }
 
-WebGL.prototype.setMatrixUniform() = function(i){
+WebGL.prototype.setMatrixUniform = function(i){
     var nMatrix = mat3.create();
 
-    var mvMatrix = this.mvMatrix[id];
-    var pMatrix = this.pvMatrix[id];
+    var mvMatrix = this.mvMatrix[i];
+    var pMatrix = this.pvMatrix[i];
 
     mat3.normalFromMat4(nMatrix, mvMatrix);
 
     gl.uniformMatrix4fv(this.shaderProgram.pMatrixUniform, false, pMatrix);
     gl.uniformMatrix4fv(this.shaderProgram.mvMatrixUniform, false, mvMatrix);
-    gl.uniformMatrix4fv(this.shaderProgram.normalMatrixUniform, false, nMatrix);
+    gl.uniformMatrix3fv(this.shaderProgram.normalMatrixUniform, false, nMatrix);
 }
 
-WebGL.prototype.addbuffer = function(object){
+WebGL.prototype.addBuffer = function(object){
     var buffer = {};
     if(object.type == 'geometry'){
         buffer.id = object.id;
@@ -175,7 +181,7 @@ WebGL.prototype.addbuffer = function(object){
         buffer.vertexIndex.numItems = object.indices.length/buffer.vertexIndex.itemSize;
 
         if(object.textureSrc !== undefined) {
-            buffer.texture = GL.createTexture();
+            buffer.texture = gl.createTexture();
             buffer.texture.loaded = false;
             buffer.texture.image = new Image();
             buffer.texture.image.onload = function () {
@@ -183,7 +189,7 @@ WebGL.prototype.addbuffer = function(object){
             }
             buffer.texture.image.src = object.textureSrc;
         } else{
-            buffer.texture = GL.createTexture();
+            buffer.texture = gl.createTexture();
             buffer.texture.loaded = true;
             buffer.texture.image = new Image();
         }
@@ -232,6 +238,72 @@ WebGL.prototype.geometryToBuffer = function(o){
         gl.uniform1i(this.shaderProgram.samplerUniform, 0);
     }
 
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, o.vertexIndex);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, o.indices);
 }
 
+WebGL.prototype.lightningToBuffer = function(o) {
+    if (o.obj.type == 'ambient-light') {
+        gl.uniform3f(this.shaderProgram.ambientColorUniform, o.obj.vertexColor.r, o.obj.vertexColor.g, o.obj.vertexColor.b);
+    } else if (o.obj.type == 'point-light') {
+        document.dispatchEvent(eventLightFollow);
+        gl.uniform3f(this.shaderProgram.pointLightingLocUniform, o.obj.vertexPosition.x, o.obj.vertexPosition.y, o.obj.vertexPosition.z)
+        gl.uniform3f(this.shaderProgram.pointLightingColorUniform, o.obj.vertexColor.r, o.obj.vertexColor.g, o.obj.vertexColor.b);
+    }
+}
+
+WebGL.prototype.renderFirstScene = function(sw, sh, ew, eh) {
+    gl.scissor(sw, sh, ew, eh);
+    gl.viewport(sw, sh, ew, eh);
+    gl.clear(gl.COLOR_BUFFER_BIT, gl.DEPTH_BUFFER_BIT);
+    
+    // Perspective Camera
+    mat4.perspective(this.pvMatrix[1], glMatrix.toRadian(45), gl.viewportWidth/gl.viewportHeight, 0.1, 1000.0)
+
+    mat4.identity(this.mvMatrix[1]);
+    mat4.translate(this.mvMatrix[1], this.mvMatrix[1], [0.0, 0.0,-50.0])
+    
+    for(var i = 0; i < this.objectBuffer.length; i++) {
+        this.mvPushMatrix(1);
+
+        var o = this.objectBuffer[i];
+
+        if(o.obj.type == 'geometry') {
+            var evt = new CustomEvent(o.id);
+            document.dispatchEvent(evt);
+
+            mat4.multiply(this.mvMatrix[1], this.mvMatrix[1], o.obj.matrixWorld);
+            this.geometryToBuffer(o);
+
+            // Get object world position
+            var temp = [];
+            for(var i = 0; i < o.obj.vertices_.length; i++){
+                temp.push(multiply(this.mvMatrix[1], o.obj.vertices_[i]));
+            }
+            
+            o.obj.position = JSON.parse(JSON.stringify(temp));
+
+            this.setMatrixUniform(1);
+            
+            console.log(o.vertexIndex);
+            gl.drawElements(gl.TRIANGLES, o.indices.numItems, gl.UNSIGNED_SHORT, 0);
+        } else{
+            this.lightningToBuffer(o);
+        }
+
+        this.mvPopMatrix(1);
+    }
+
+    document.dispatchEvent(eventAfterRender);
+}
+
+WebGL.prototype.renderScene = function() {
+    gl.enable(gl.SCISSOR_TEST);
+
+    var width = gl.viewportWidth;
+    var height = gl.viewportHeight;
+
+    this.renderFirstScene(0 * width / 2, 1 * height / 2, width / 2, height / 2);
+}
+
+var rotater = 1;
+var dir = [1, 1, 1];
